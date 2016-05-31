@@ -1,0 +1,670 @@
+
+
+#include <io430.h>
+#include <in430.h>
+#include <intrinsics.h>
+
+#include "Predefined.h"
+#include "DefineSPC.h"
+#include "InputDo.h"
+#include "InitSys.h"
+#include "FlashWR.h"
+#include "Key.h"
+#include "DispDataDo.h"
+#include "CalFromTab.h"
+#include "CommDo.h"
+#include "LcdDriver.h"
+
+
+
+
+
+
+void SPCInit(void)
+{
+  
+ RDFlash(( char *)0x200,(char *)0x1000);
+
+ RDFlash(( char *)0x280,(char *)0x1080); 
+
+ PV[0]=0;
+ PV[1]=0;
+ PV[2]=0;
+   
+ SAMP[0]=0;
+ SAMP[1]=0;
+ SAMP[2]=0; 
+  
+ CAPTURE_CNT=0;
+ CAPTURE_ADD=0;
+ CAPTURE_NOP=0; 
+ 
+ P2OUT|=BIT2;        
+ P2OUT|=BIT1;      
+ P2OUT&=~BIT0;       //地电平
+ 
+ MBWake;
+ MBConfigOff;
+ MBResetOn;
+ delay_ms(100);
+ MBResetOff;
+ 
+ LedAOn;
+ KeyTestOn; 
+ MenuStuNum=0;
+ MenuStu=Off;
+ CommStatusFlag=0;
+ InputChannel=1;
+  
+ NetID=0xff;
+ MBChannel=9;
+ 
+ MBAddr=0x0008;
+ 
+ 
+ BatStu=3;
+ //StandbyTime=5;                                
+
+ 
+ 
+ LcdTwoByteWrite(1,Line3,7 ,BAITEGONGKONG);  //百特工控+空格
+  
+ LcdCharWrite(30,Line2,7,FBTC) ;           //FBTC+空格
+}
+
+
+
+void main(void)
+
+{ 
+   
+   _DINT();                      //关全局中断
+   
+   WDTCTL=WDTPW+WDTHOLD;         //关看门狗
+   
+   
+ /*********************
+   
+ InitSysForActive();
+ RDFlash(( char *)0x200,(char *)0x1000);
+ RDFlash(( char *)0x280,(char *)0x1080); 
+   
+   
+   InitSysForActive();
+  // P2IE=0;
+  // TBCTL&=~TBIE;
+   WBStu=Active;                          //自动进入活跃状态
+   
+   LcdInit();
+   
+   LcdClear();
+   
+   SPCInit();
+   
+   delay_ms(1000);
+   
+   NormalDisp(); 
+   
+   delay_ms(1000);
+   
+   
+    ********************/ 
+   
+   
+  InitSysBasic();
+   
+    
+   
+   InitSysForPowerOff();
+   
+   
+ 
+   WBStu=PowerOff;
+   KeyPutStu=Off;
+   
+   MBSleep;
+   LedAOff;
+   MBConfigOff;
+   
+   KeyDelayCount=0;
+   StuCount=0;
+   KeyTestTime=Off;   
+   
+  
+   //TBCCR0=StandbyTime * 60;            //StandbyTime*60秒
+   
+   
+   
+
+   
+   
+  
+  
+   
+   _EINT();//开全局中断
+   
+   LPM4;
+    
+  while(1)
+   {
+     
+  
+                  if(InputSampleOver==1)
+                        {
+                         
+                         if(DataOverflow[InputChannel-1]==0)
+                          {
+                           
+                            switch(InputChannel)
+                             {
+                               case  1:
+                                      PV[0]=CalFromTab(1,&In1Cal00,&In1CalFS);
+                               break;
+                               case  2:
+                                      PV[1]=CalFromTab(2,&In2Cal00,&In2CalFS);
+                               break;
+                               case  3:
+                                      PV[2]=CalFromTab(2,&In3Cal00,&In3CalFS);
+                               break;
+                               
+                             }
+                            
+                                 
+                                  
+                          }
+                         if(MenuStu==Off)
+                         {
+                                   DigitalRefresh(1,InputChannel,PV[InputChannel-1],DataOverflow[InputChannel-1]);
+       
+                          }
+                         
+                          DataOverflow[InputChannel-1]=0;
+                          InputSampleOver=0;
+                          CAPTURE_CNT=0;
+                          CAPTURE_ADD=0;
+                          CAPTURE_NOP=0;
+                          TACCTL2=CM_2+CAP;
+                          InputChannel++;
+                          if(InputChannel==4)
+                                     InputChannel=1;
+                          //InputChannel=1;//T
+                          switch(InputChannel)
+                      {
+                        case 1:
+                                 P2OUT&=~BIT2;        
+                                 P2OUT&=~BIT1;      
+                                 P2OUT&=~BIT0;     //第一路输入正端
+                                 
+                                 break;
+                        case 2:
+                                 P2OUT&=~BIT2;        
+                                 P2OUT|=BIT1;      
+                                 P2OUT&=~BIT0;     //第二路输入正端
+                                 
+                                
+                                 break;           
+                        case 3:
+                                 P2OUT|=BIT2;        
+                                 P2OUT&=~BIT1;      
+                                 P2OUT&=~BIT0;    //第三路输入正端
+                               
+                                 break;
+                        default:
+                                  _NOP();
+                      }
+    
+                        }
+                  
+                  
+      
+  
+   
+   
+  /*************************************************************/  
+    if(KeyTestTime==On)				    //每隔一定时间进行键盘扫描
+	 {
+	 
+	 KeyTestTime=Off;
+	 KeyTemp=P2IN;
+	 KeyTemp&=0x68;				    //读键值
+	 if(KeyValue==KeyTemp)
+		 {
+		      if(KeyChange==1)
+		         {
+		         ramstart=&CeJianHao;
+		         Key(KeyValue);	    //键盘处理
+			 }
+		      
+		 }
+          else
+		 {
+		 KeyValue=KeyTemp;
+		 KeyChange=1;
+		 Key30s=500;
+			 
+		 }
+         }
+  /*********************通讯处理*****************************/
+         /*
+             if(SentDataFlag==On)
+             {
+              SentDataFlag=Off; 
+              CommSentData(CommSent,&RAM_START);
+              CommNum=0;
+              U0TXBUF=CommSent[0];
+             }
+         */
+  /****************************接收处理*********************************/    
+            if(RiEndFlag==1)
+	    {
+	      CommSentData(CommSent,&CeJianHao);
+             
+              if(SentOrNot==1)
+               {
+               ME1=UTXE0;          //使能发送
+               _NOP();
+               _NOP();
+               CommNum=0;
+               U0TXBUF=CommSent[0];
+                }
+              else
+               {
+                ME1=URXE0;          //使能接收 
+                CommNum=0; 
+                 
+               }
+              
+              RiEndFlag=0;
+	    }
+ /****************************发送处理*********************************/ 
+	    if(TiEndFlag==1)
+	    {
+	           uchar k;
+			   for(k=0;k<30;k++)
+			   {
+			    CommSent[k]=0;
+			   }
+                           
+	           CommNum=0;
+		   ME1=URXE0;          //使能接收 
+		   
+                   TiEndFlag=0; 
+	      
+	     }
+ /****************************超时处理*********************************/ 
+	    if(OverTime==1)					//异常超时处理
+	    {
+
+	     uchar k;
+			   for(k=0;k<30;k++)
+			      {
+			      CommSent[k]=0;
+			      }
+	
+	  
+	    CommNum=0;
+	    OverTime=0;
+            ME1=URXE0;          //使能接收
+		
+	    }
+   /******************显示处理***************************************/  
+    
+    
+    
+    
+    
+    
+    
+    
+    
+  /****************************************************************/  
+     
+ 
+
+    }
+}
+
+
+#pragma vector=PORT2_VECTOR
+__interrupt void Port2Int(void)
+{
+  uint i;
+  //LedAOn;//t                          
+  P2IFG = 0;                           // P2.7 IFG cleared
+  i=50000;
+
+  while((--i))
+ {
+    _NOP();
+  }
+  //delay_ms(10);                            //消抖
+  KeyTemp=P2IN&0X80;
+   
+  
+  if(KeyTemp==0)
+  {
+    
+    KeyPutStu=On;
+    P2IE=0;                                //关闭中断
+    KeyDelayCount=0;
+        // if((WBStu==PowerOff)||(WBStu==Standby))
+       if(WBStu==PowerOff)
+         {
+           LPM4_EXIT;
+           _EINT();
+           TBCTL=TBSSEL_1+MC_2;//ACLK,连续模式
+           TBCCTL1|=CCIE;
+           TBR=0;
+           TBCCR1=1966;            //60ms中断一次
+           TBCCTL0=0;              //关TBCCR0中断
+           
+          
+           LPM3;        //开ACLK
+         }
+      if(WBStu==Standby)
+       {
+        LedAOn;//t 
+        TACTL=0;    
+        TACCTL0=0;       
+        TACCTL1=0;
+        TACCTL2=0;
+        
+        TBCTL=TBSSEL_1+MC_2;//ACLK,连续模式
+        TBCCTL1|=CCIE;
+        TBR=0;
+        TBCCR1=1966;            //60ms中断一次
+        TBCCTL0=0;              //关TBCCR0中断 
+         
+         
+       }
+  }
+ 
+  
+}
+
+#pragma vector=TIMERB0_VECTOR
+__interrupt void TimerB0Int (void)
+ {
+   WBStu=Active;                          //自动进入活跃状态
+   InitSysForActive();
+   
+   StuCount=0;
+   LedAOn;
+   MBWake;
+   KeyTestOn; 
+  
+   
+   LPM3_EXIT; 
+   
+ }
+
+
+
+
+#pragma vector=TIMERB1_VECTOR
+__interrupt void TimerB1Int (void)
+{
+    switch(TBIV)
+     {
+       case 0x02:                          //TBCCR1 CCIFG
+                // LedAOn;//t
+                 TBCCTL1&=~CCIFG;
+                 KeyTestTime=On;           //key1-key4间隔扫描时间
+                 TBCCR1+=1966;
+                 if(KeyPutStu==On)         //持续按压激活键时间检测    
+                  {
+                    KeyTemp=P2IN&0X80;
+                    if(KeyTemp==0)          //激活键保持按下状态
+                     {
+                       
+                      KeyDelayCount++;
+                        if(KeyDelayCount==85)    //5秒
+                        {
+                         KeyDelayCount=0;
+                           switch(WBStu)
+                           {
+                            case PowerOff:
+                                           LPM3_EXIT;
+                                           WBStu=Active;
+                                           InitSysForActive();
+                                           StuCount=0;
+                                           
+                                           LcdInit();
+                                           SPCInit();
+                                           delay_ms(2000);
+                                           NormalDisp();
+                                           
+                                           break;
+                            case  Active:
+                           // case  Standby: 
+                                         WBStu=PowerOff; 
+                                         
+                                         MBSleep;   
+                                         LedAOff;
+                                         KeyTestOff;
+                                         WriteCommand(0xAE);
+                                         InitSysForPowerOff();
+                                         KeyPutStu=Off;
+                                         KeyDelayCount=0;
+                                         P2IES=0X80;                //下降沿触发
+                                         P2IFG=0;
+                                         P2IE=0X80;                 //开P2.7中断
+                                         
+                                         _EINT();
+                                         LPM4;          //关机（深度休眠）
+                                         break;
+                                   
+                                  
+                          }
+                        }
+                        
+                     }
+                   
+                    else
+                     {
+                      KeyDelayCount=0;
+                      KeyPutStu=Off;
+                      P2IES=0X80;                //下降沿触发
+                      P2IFG=0;
+                      P2IE=0X80;                 //开P2.7中断
+                      switch(WBStu)
+                      {
+                      case PowerOff:
+                                     LPM3_EXIT;
+                                     _EINT();
+                                     LedAOff;
+                                     TBCTL=0;
+                                     TBCCTL1=0;
+                                     TBR=0;
+                                     TBCCR1=0; 
+                                     LPM4;
+                                     break;
+                      case Active:  
+                                     //SentDataFlag=On;//手动激活立即发送数据
+                                     break;
+                      case Standby:
+                                     WBStu=Active;   //手动激活
+                                     InitSysForActive();
+                                     StuCount=0;
+                                     //WriteCommand(0xAF);
+                                     //LcdInit();
+                                     LedAOn;
+                                     MBWake;
+                                     KeyTestOn; 
+                                     
+                                     delay_ms(200);    //避免进入菜单
+                                     
+                                    // SPCInit(); 
+                                     
+                                     //delay_ms(2000);
+                                     //NormalDisp();
+                                     
+                                     
+                                     LPM3_EXIT;
+                                    
+                        
+                      }
+                       
+                        
+                     }
+                   
+                  }
+                 break;
+                   
+       case 0x0e:                                  //TBIFG
+                 TBCTL&=~TBIFG;
+                 if(WBStu==Active)
+                 {
+                   SentDataDelay++;
+                   if(SentDataDelay==10)          //间隔20秒钟发一次数据
+                   {
+                     SentDataDelay=0;
+                     SentDataFlag=On;
+                   }
+                     
+                   StuCount++;
+                   if(StuCount==ActiveTime)      //活动模式时间到(5分钟)
+                    {
+                      StuCount=0;
+                      WBStu=Standby;
+                      
+                      InitSysForStandby();
+                      
+                      TBCCR0=StandbyTime * 60;            //StandbyTime*60秒
+                      TBR=0;
+                      
+                      MBSleep;
+                      LedAOff;
+                      KeyTestOff;
+                      //WriteCommand(0xAE);//LCD POWER OFF
+                      
+           
+                      _EINT();
+                      LPM3;                    //自动进入待机状态
+                    }
+                 }
+                               
+                break;
+     }
+}
+
+
+
+
+#pragma   vector=TIMERA1_VECTOR
+__interrupt void  ta_compa_int(void)
+ {
+   
+   switch(TAIV)
+    {
+      
+      case 0x02:               //TACCR1 CCIFG
+                               //TACCR1=PWMOUT;
+               break;
+      case 0x04:              //TACCR2 CCIFG
+               break;
+      case 0x0a:             //TAIFG
+              
+              TACCR1=PWMOUT;
+              TACTL &=~TAIFG;
+              
+              if(CommStatusFlag==0)
+              {
+                               if(InputSampleOver==0)
+                                {
+                                     InputDo();
+                                  
+                                  
+                                }
+                               else
+                                {
+                                     if(TACCTL2_bit.COV==1)
+                                     {
+                                     TACCTL2_bit.COV=0;
+                                     TACCTL2_bit.CCIFG=0;
+                                     } 
+                                  
+                                }
+                              
+               }
+             else
+              {
+               
+                 if(TACCTL2_bit.COV==1)
+                  {
+                        TACCTL2_bit.COV=0;
+                        TACCTL2_bit.CCIFG=0;
+                  }
+                 
+                 CommTest++;
+                 
+                 if(CommTest>=10)                  //50MS
+                 {
+                  OverTime=1;
+	          CommTest=0;
+	          CommStatusFlag=0;
+                 }
+              }
+              
+           
+           
+               break;
+      
+    }
+   
+   
+  
+    
+         
+   
+ }
+
+
+#pragma vector=USART0RX_VECTOR
+__interrupt void receive_int(void)
+ {
+    uchar RiData;
+    
+    CommStatusFlag=1;
+    CommTest=0;
+	
+    RiData=U0RXBUF;
+    CommSent[CommNum]=RiData;
+    CommNum++;
+	    if(CommNum==8)
+	    {
+			
+			CommStatusFlag=0;
+			RiEndFlag=1;
+			//ME1=UTXE0;          //使能
+                       
+	     }
+ 
+ }
+   
+   
+   
+
+
+#pragma vector=USART0TX_VECTOR
+__interrupt void sent_int(void)
+ {
+ 
+    CommStatusFlag=1;
+    CommTest=0;
+    CommNum++;
+	if(CommNum==SentNum)
+	{
+	CommStatusFlag=0;
+	TiEndFlag=1;
+       // ME1=URXE0;          //使能接收
+	}
+	else
+	{
+	  U0TXBUF=CommSent[CommNum];
+	} 
+ 
+  
+ 
+ }
+
