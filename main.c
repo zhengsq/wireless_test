@@ -227,7 +227,7 @@ void main(void)
         LedAOn;
         LcdTwoByteWrite(0,Line3,7 ,BACKUPING);//参数恢复中……
         
-        delay_ms(500);
+        delay_ms(1000);
   
         DataRecover888(&StartRAM);    //恢复备份
         

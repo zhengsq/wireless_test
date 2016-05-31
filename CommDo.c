@@ -113,7 +113,7 @@ switch(*(rxdata+1))
                       RecoverFlag=Off;
                
                WRFlash ((uchar *)0x200,(uchar *)0x1000,64);
-               delay_ms(10);
+               delay_ms(20);
                RDFlash ((uchar *)0x200,(uchar *)0x1000,64);
                }
              // SentOrNot=1;
@@ -226,7 +226,7 @@ switch(*(rxdata+1))
                              
                              
                              WRFlash ((uchar *)0x200,(uchar *)0x1000,64);
-                             delay_ms(10);
+                             delay_ms(20);
                              RDFlash ((uchar *)0x200,(uchar *)0x1000,64);
                             // delay_ms(10);
                              
@@ -314,10 +314,10 @@ switch(*(rxdata+1))
                               break;
                             }
                             WRFlash ((uchar *)0x200,(uchar *)0x1000,64);
-                            delay_ms(10);
+                            delay_ms(20);
                             RDFlash ((uchar *)0x200,(uchar *)0x1000,64);
                             
-                            delay_ms(10);
+                            delay_ms(20);
                             
                             WRFlash ((uchar *)0x280,(uchar *)0x1080,33);
                             delay_ms(10);
