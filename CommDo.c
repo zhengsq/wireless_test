@@ -113,7 +113,7 @@ switch(*(rxdata+1))
                       RecoverFlag=Off;
                
                WRFlash ((uchar *)0x200,(uchar *)0x1000,64);
-               delay_ms(20);
+               delay_ms(60);
                RDFlash ((uchar *)0x200,(uchar *)0x1000,64);
                }
              // SentOrNot=1;
@@ -140,7 +140,7 @@ switch(*(rxdata+1))
                 if(IDSetFlag==On)
                       IDSetFlag=Off;
                 WRFlash ((uchar *)0x200,(uchar *)0x1000,64);
-                delay_ms(10);
+                delay_ms(60);
                 RDFlash ((uchar *)0x200,(uchar *)0x1000,64);
                 
                 

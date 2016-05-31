@@ -157,7 +157,7 @@ LcdCharWrite(28,Line2,8,VERSION) ; //版本信息ver 1.1M
  //delay_ms(1150);//延时时间已调整，改变将影响上电时的模块读取
 
  delay_ms(1600);//显示及延长模块上电时间，便于读取参数
- 
+ delay_ms(800);
 }
 
 
@@ -227,7 +227,7 @@ void main(void)
         LedAOn;
         LcdTwoByteWrite(0,Line3,7 ,BACKUPING);//参数恢复中……
         
-        delay_ms(1000);
+        delay_ms(800);
   
         DataRecover888(&StartRAM);    //恢复备份
         
